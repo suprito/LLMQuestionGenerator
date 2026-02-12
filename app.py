@@ -113,16 +113,16 @@ def generate_mcq(topic: str, retriever, num_questions: int=5):
         response = mcq_chain.invoke({"context": context_chunk})
         
         try:
-            # 1. Robust Question Extraction
+            
             # Splitting by A) or 1) to ensure we get only the question text
             question_part = re.split(r'[A-D]\)|1\)', response)[0]
             question = question_part.replace("Question:", "").strip()
             
-            # 2. Robust Options Extraction
+            
             # This regex looks for A) Text, B) Text, etc., OR 1) Text, 2) Text, etc.
             options = re.findall(r'(?:[A-D]\)|[1-4]\)) (.*)', response)
             
-            # 3. Robust Correct Answer Extraction
+            
             # Searches for 'Correct Answer:' followed by a Letter or Number, ignoring case
             correct_match = re.search(r'Correct Answer:\s*(?:Option\s*)?([A-D]|1|2|3|4)', response, re.IGNORECASE)
             
@@ -199,7 +199,7 @@ if __name__ == "__main__":
     #llm=load_llama()
 
     retriver=vectorstore.as_retriever(search_kwargs={"k": 10})
-
+    # run in cmd
     while True:
         topic = input("Enter the topic for MCQ generation (or 'q' to quit): ").strip()
         if topic.lower() == 'q':
