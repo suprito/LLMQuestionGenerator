@@ -1,18 +1,50 @@
-import streamlit as st
 import os
-from utils import generate_mcq, load_docs, load_llama, downlode_hugging_face_embeddings, split_docs, create_vectorstore
-import tempfile
+from dotenv import load_dotenv
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
+from langchain_huggingface import HuggingFaceEndpoint
+from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+import re
+
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
+load_dotenv()
+HF_TOKEN = os.getenv("HF_TOKEN")
+file_path = "data/MedicalBook.pdf"
+
+def load_docs(file_path):
+    loader=PyPDFLoader(file_path)
+    documents=loader.load()
+    #print(f"Document Loaded with page Numbers: {len(documents)}")
+    return documents
+
+def split_docs(documents):
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=200, separators=["\n\n", "\n", " ", ""],)
+    text_chunks= text_splitter.split_documents(documents)
+    #print(f"Total number of final chunks: {len(text_chunks)}")
+    return text_chunks
+
+def downlode_hugging_face_embeddings():
+    embeddings=HuggingFaceEmbeddings(model_name='sentence-transformers/msmarco-MiniLM-L6-v3')
+    return embeddings
 
 
-st.set_page_config(page_title="GenAI MCQ Generator", layout="wide")
-st.title("GenAI based MCQ Quiz App")
+CHROMA_PATH = "chroma_db_MCQGen"
+def create_vectorstore(text_chunks, embeddings, persist_dir=None):
+    if persist_dir:
+        vectorstore=Chroma.from_documents(documents=text_chunks, embedding=embeddings, persist_directory=CHROMA_PATH)     
+    else: #in-memory version for cloud deployment
+        vectorstore = Chroma.from_documents(documents=text_chunks, embedding=embeddings)
 
-# session states initialization
-if "questions" not in st.session_state:
-    st.session_state.questions = []
+    return vectorstore
 
-<<<<<<< HEAD
+
 def load_llama():
     repo_id='meta-llama/Llama-3.2-3B-Instruct'
     llm=HuggingFaceEndpoint(
@@ -80,17 +112,18 @@ def generate_mcq(topic: str, retriever, num_questions: int=5):
         context_chunk = docs[i].page_content
         response = mcq_chain.invoke({"context": context_chunk})
         
+        # parsing the LLM output to match streamlit UI requirements 
         try:
-            
+            # 1. Robust Question Extraction
             # Splitting by A) or 1) to ensure we get only the question text
             question_part = re.split(r'[A-D]\)|1\)', response)[0]
             question = question_part.replace("Question:", "").strip()
             
-            
+            # 2. Robust Options Extraction
             # This regex looks for A) Text, B) Text, etc., OR 1) Text, 2) Text, etc.
             options = re.findall(r'(?:[A-D]\)|[1-4]\)) (.*)', response)
             
-            
+            # 3. Robust Correct Answer Extraction
             # Searches for 'Correct Answer:' followed by a Letter or Number, ignoring case
             correct_match = re.search(r'Correct Answer:\s*(?:Option\s*)?([A-D]|1|2|3|4)', response, re.IGNORECASE)
             
@@ -147,37 +180,27 @@ if __name__ == "__main__":
     embeddings=downlode_hugging_face_embeddings()
     if os.path.exists(persist_directory):
         print("Existing Vectorstore found. Loading...")
-=======
-# load the default retriever on app start up
-if "retriever" not in st.session_state:
-    # check if persistance folder exists
-    if os.path.exists('chroma_db_MCQGen'):
-        embeddings = downlode_hugging_face_embeddings()
->>>>>>> 28f25b2 (Updaed code, webUI functionality added, updated app structure.)
         vectorstore = Chroma(
-            persist_directory='chroma_db_MCQGen', 
+            persist_directory=persist_directory, 
             embedding_function=embeddings
         )
-        st.session_state.retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
     else:
-        st.session_state.retriever = None
+        # 2. CREATE: Only runs the first time or if you delete the folder
+        print("No Vectorstore found. Starting ingestion...")
+        raw_documents = load_docs(file_path)
+        text_chunks = split_docs(raw_documents)
+        vectorstore = create_vectorstore(text_chunks, embeddings)
+        print("Vectorstore created successfully.")
 
-#side bar for document upload and processing
-with st.sidebar:
-    st.header("Upload Medical Document")
-    uploaded_file = st.file_uploader("Upload a medical book or document to generate the questions", type=["pdf"])
+    # retriver=vectorstore.as_retriever(search_kwargs={"k": 10})
+    # #search_kwargs={"k": 3}
+    # docs=retriver.invoke("what is Homeopathy")
+    # print(docs[2].page_content)
 
-    if uploaded_file:
-        if st.button("Process Document"):
-            with st.spinner("Analysing your document. This may take a few minutes..."):
-                # tempory file path to store the uploded pdf
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                    tmp_file.write(uploaded_file.getvalue())
-                    tmp_path = tmp_file.name
+    #llm=load_llama()
 
-<<<<<<< HEAD
     retriver=vectorstore.as_retriever(search_kwargs={"k": 10})
-    # run in cmd
+
     while True:
         topic = input("Enter the topic for MCQ generation (or 'q' to quit): ").strip()
         if topic.lower() == 'q':
@@ -185,55 +208,9 @@ with st.sidebar:
         mcqs = generate_mcq(topic, retriver, num_questions=5)
         for i, mcq in enumerate(mcqs, 1):
             print(f"\nMCQ {i}:\n{mcq}\n")
-=======
-                # load and split the document from app.py functions
-                loader = load_docs(tmp_path)
-                chunks=split_docs(loader)
-                embeddings=downlode_hugging_face_embeddings()
-
-                vectorstore = create_vectorstore(chunks, embeddings, persist_dir='chroma_db_MCQGen')
-                st.session_state.retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
-
-                os.remove(tmp_path) #Clean up
-                st.success("Analysis Complete")
->>>>>>> 28f25b2 (Updaed code, webUI functionality added, updated app structure.)
 
 
-# document upload block(Stage-1)
-topic = st.text_input("Enter Topic:")
-if st.button("Generate MCQs"):
-    # Check if a document has been processed first
-    if st.session_state.retriever is not None: 
-        with st.spinner("Generating..."):
-            # CHANGE 'retriever' TO 'st.session_state.retriever'
-            st.session_state.questions = generate_mcq(topic, st.session_state.retriever)
-        st.rerun()
-    else:
-        st.error("Please upload and process a document in the sidebar first!")
+    
 
-# quiz block(Stage-2)
-if st.session_state.questions:
-    with st.form("quiz_form", border=False):
-        for i, mcq in enumerate(st.session_state.questions):
-            st.write(f"## Question {i+1}")
-            st.write(f"Question: {mcq['question']}")
 
-            user_choice = st.radio(label="Select an option", options=mcq['option'], index=None, key=f"radio_{i}")
 
-            if st.session_state.get(f"radio_{i}") and st.session_state.get("FormSubmitter:quiz_form-Submit"):
-                if user_choice.strip().lower() == mcq['correct_answer'].strip().lower(): 
-                    st.success("Correct Answer!", icon="✅")
-                else:
-                    st.error("Incorrect!", icon="❌")
-
-            with st.expander(label="Check Answer"):
-                st.write(f"Correct Answer: {mcq['correct_answer']}")
-
-        st.write("---")
-        submit_btn = st.form_submit_button("Submit", type="primary")
-
-    if submit_btn:
-        st.success("Quiz Submitted!")
-        
-else:
-    st.info("The quiz will appear here once you enter a topic and click 'Generate MCQs'.")
