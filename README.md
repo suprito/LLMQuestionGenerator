@@ -20,3 +20,5 @@ An automated MCQ generator using Llama 3.2, LangChain and RAG to transform PDF d
 
 # Live Application Link
 HuggingFace Spaces: https://huggingface.co/spaces/Suprito/medical-question-generator
+
+Note: If the app is sleeping, please click 'Restart' and wait for 1 minute for the server to wake up.
