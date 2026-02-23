@@ -10,7 +10,7 @@ An automated MCQ generator using Llama 3.2, LangChain and RAG to transform PDF d
 
 ## Project Structure
 * `utils.py`: The RAG and LLM logic.
-* `app.py`: The Streamlit interface code.
+* `app.py`: The Streamlit web UI code.
 * `requirements.txt`: Python dependencies.
 
 ## Screenshots
